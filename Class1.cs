@@ -33,6 +33,12 @@ public class Vehicle_Controls : Script
     private DateTime _vehicleExitKeyTime;
 
 
+    // <----- INDICATORS AND HEADLIGHT CONTROLS FIELDS ----->
+    private readonly bool[] _enableIndicator = new bool[2];
+    private readonly DateTime[] _indicatorTime = new DateTime[2];
+
+    // <<<-------------------------------------------->>> //
+
 
 
     public Vehicle_Controls()
@@ -44,6 +50,7 @@ public class Vehicle_Controls : Script
         Interval = 25;
 
         INI_CONFIG();
+        Notification.Show("Vehicle-Controls is ~g~Activated");
     }
 
 
@@ -77,10 +84,10 @@ public class Vehicle_Controls : Script
         {
             Ped player = Game.Player.Character;
             bool VehicleStatus = !player.IsInVehicle() || _currentVehicle == null || _currentVehicle.GetPedOnSeat(VehicleSeat.Driver) != player;
+            if (VehicleStatus || player.IsInHeli || player.IsInPlane) return;
 
-            if (VehicleStatus && !player.IsInHeli || !player.IsInPlane) return;
 
-
+            // --- CONTROL VEHICLE ENGINE VIA 'INI SET-UP KEY' --- //
             if (e.KeyCode == _engineToggle)
             {
                 if (!_currentEngineState)       // --- START ENGINE IF ENGINE CURRENTLY OFF --- //
@@ -90,7 +97,38 @@ public class Vehicle_Controls : Script
                 }
                 // --- TURN OFF ENGINE IF ENGINE CURRENTLY RUNNING --- //
                 else
-                    _currentEngineState = false; Function.Call(Hash.SET_VEHICLE_ENGINE_ON, false, false, true);
+                {
+                    _currentEngineState = false;
+                    Function.Call(Hash.SET_VEHICLE_ENGINE_ON, _currentVehicle, false, false, true);
+                }
+            }
+
+
+            // --- HANDLE VEHICLE EXIT EVENT WITH TIME(ms)  --- //
+            if (e.KeyCode == Keys.F)
+            {
+                _vehicleExitKeyHeld = false;
+                double holdingTime = (DateTime.Now - _vehicleExitKeyTime).TotalMilliseconds;    // CALCULATE HOW LONG F WAS HELD
+                Notification.Show($"~b~TOTAL HELD-TIME~w~: {holdingTime:000}~g~(ms)");
+
+                // --- HOLD 500ms ABOVE FOR ENGINE OFF AND VEHICLE EXIT --- //
+                if (holdingTime >= 500)
+                {
+                    if (_currentVehicle.Speed > 10f) return;
+
+                    if (_currentVehicle != null && _currentVehicle.Exists())
+                    {
+                        _currentVehicle.IsEngineRunning = false; player.Task.LeaveVehicle();
+                    }
+                }
+                // --- LESS THAN 750ms LEAVE ENGINE ON --- //
+                else
+                {
+                    if (_currentVehicle != null && _currentVehicle.Exists())
+                    {
+                        _currentVehicle.IsEngineRunning = true; player.Task.LeaveVehicle();
+                    }
+                }
             }
         }
         catch (Exception ex) { Notification.Show($"~r~OnKeyUp~w~: {ex.Message}"); }
@@ -102,6 +140,18 @@ public class Vehicle_Controls : Script
     // =======================================================
     private void OnKeyDown(object sender, KeyEventArgs e)
     {
+        try
+        {
+            Ped player = Game.Player.Character;
+            if (!player.IsInVehicle() || _currentVehicle == null || _currentVehicle.GetPedOnSeat(VehicleSeat.Driver) != player) return;
+
+            // --- STORE TIME(ms) DURING HOLD 'F' KEY --- //
+            if (e.KeyCode == Keys.F && !_vehicleExitKeyHeld)
+            {
+                _vehicleExitKeyHeld = true; _vehicleExitKeyTime = DateTime.Now;
+            }
+        }
+        catch { }
     }
 
 
@@ -126,9 +176,9 @@ public class Vehicle_Controls : Script
 
     //  =>> MAKE SOME VEHICLE FEATURES FOR ACCESSABLE  <<= //
     // =======================================================
-    private void VEHICLE_ENGINE_MANUAL_FEATURE(Ped player, Vehicle curVeh)
+    private void VEHICLE_ENGINE_MANUAL_FEATURE(Ped player, Vehicle vehicle)
     {
-        if (!player.IsInVehicle() || curVeh == null || curVeh.GetPedOnSeat(VehicleSeat.Driver) != player)
+        if (!player.IsInVehicle() || vehicle == null || vehicle.GetPedOnSeat(VehicleSeat.Driver) != player)
         {
             _initializedVehicle = false;
             _currentEngineState = false; return;
@@ -140,11 +190,11 @@ public class Vehicle_Controls : Script
             _initializedVehicle = true;
 
             // CHECK CURRENT VEHICLE ENGINE STATE (in bool formate)
-            _currentEngineState = curVeh.IsEngineRunning;
+            _currentEngineState = vehicle.IsEngineRunning;
         }
 
         // --- IF ENGINE STATE FOUND OFF, SO FORCE TO STAY OFF (avoid automatic) --- //
-        if (!_currentEngineState) Function.Call(Hash.SET_VEHICLE_ENGINE_ON, curVeh, false, false, true);
+        if (!_currentEngineState) Function.Call(Hash.SET_VEHICLE_ENGINE_ON, vehicle, false, false, true);
     }
 
 
