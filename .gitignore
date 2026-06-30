@@ -1,0 +1,15 @@
+# Visual Studio
+.vscode/
+bin/
+obj/
+libs/
+Debug/
+
+
+*.csproj
+
+
+# Zip / Release Packages
+*.zip
+*.rar
+*.7z
